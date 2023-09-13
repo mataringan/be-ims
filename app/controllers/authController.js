@@ -66,7 +66,7 @@ module.exports = {
         subject: "OTP Verification",
         html: ` 
             <div style: "justify-content: center;">
-            <img src="https://i.ibb.co/vw7bv7j/Untitled-design-8-removebg-preview.png" style= "height: 150px;">
+            <img src="https://i.postimg.cc/3wHCdWxd/image-auth.jpg" style= "height: 150px;">
             </div>
             <center>
             <h1 style="text-align: center; font-family: Arial, sans-serif; background-color: #DEC9FF;">Verification Code</h1>
@@ -111,7 +111,7 @@ module.exports = {
       const otpExpiration = new Date(findUser.otpExpiration);
 
       if (currentDateTime > otpExpiration) {
-        res.status(400).json({
+        return res.status(400).json({
           status: "error",
           message: "OTP has expired",
         });
@@ -126,6 +126,58 @@ module.exports = {
         data: findUser,
       });
     } catch (error) {
+      return res.status(500).json({
+        status: "failed",
+        message: error.message,
+      });
+    }
+  },
+
+  async resendOTP(req, res) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email is required",
+        });
+      }
+
+      const user = await User.findOne({
+        where: {
+          email,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          status: "error",
+          message: "User not found",
+        });
+      }
+
+      // Generate new OTP
+      const newOTP = generateOTP();
+      const otpExpirationValidity = 1; // Menentukan validitas kedaluwarsa OTP dalam menit
+      const otpExpiration = new Date();
+      otpExpiration.setMinutes(
+        otpExpiration.getMinutes() + otpExpirationValidity
+      ); // Menambahkan waktu kedaluwarsa OTP dalam menit
+
+      user.otp = newOTP;
+      user.otpExpiration = otpExpiration.toISOString();
+      user.verified = false;
+      await user.save();
+
+      // Send new OTP to user's email
+      module.exports.sendOTPByEmail(user.email, user.otp);
+
+      res.status(200).json({
+        status: "success",
+        message: "New OTP sent successfully",
+      });
+    } catch (error) {
       res.status(400).json({
         status: "failed",
         message: error.message,
@@ -135,94 +187,144 @@ module.exports = {
 
   async register(req, res) {
     try {
-      if (req.file == null) {
-        res.status(400).json({
-          status: "failed",
-          message: "you must input image",
+      const password = await encryptPassword(req.body.password);
+      const { name, email, phone } = req.body;
+
+      // check email and password is not empty
+      if (!email || !password) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email and password is required",
         });
-        return;
-      } else {
-        const password = await encryptPassword(req.body.password);
-        const { name, email, phone } = req.body;
-
-        const fileBase64 = req.file.buffer.toString("base64");
-        const file = `data:${req.file.mimetype};base64,${fileBase64}`;
-
-        cloudinary.uploader.upload(
-          file,
-          { folder: "auth-ims-ngaos" },
-          async function (err, result) {
-            if (!!err) {
-              res.status(400).json({
-                status: "upload fail",
-                errors: err.message,
-              });
-              return;
-            }
-
-            // check email and password is not empty
-            if (!email || !password) {
-              return res.status(400).json({
-                status: "error",
-                message: "Email and password is required",
-              });
-            }
-
-            // validator email format using regex
-            const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
-            if (!emailRegex.test(email)) {
-              return res.status(400).json({
-                status: "error",
-                message: "Email format is invalid",
-              });
-            }
-
-            const findEmail = await User.findOne({
-              where: {
-                email,
-              },
-            });
-
-            if (findEmail) {
-              return res.status(400).json({
-                status: "error",
-                message: "email already exist",
-                data: {},
-              });
-            }
-
-            // Generate otp
-            const otp = generateOTP();
-            const otpExpirationValidity = 5; // Menentukan validitas kedaluwarsa OTP dalam menit
-            const otpExpiration = new Date();
-            otpExpiration.setMinutes(
-              otpExpiration.getMinutes() + otpExpirationValidity
-            ); // Menambahkan waktu kedaluwarsa OTP dalam menit
-
-            const userForm = await User.create({
-              id: uuid(),
-              name,
-              password,
-              email,
-              phone,
-              otp,
-              otpExpiration: otpExpiration.toISOString(), // Mengubah format tanggal dan waktu menjadi ISO 8601
-              verified: false,
-              role: "karyawan",
-              image: result.url,
-            });
-
-            // Send OTP to user's email
-            module.exports.sendOTPByEmail(userForm.email, userForm.otp);
-
-            res.status(201).json({
-              status: "success",
-              message: "Verification Link Sent, Please check email!",
-              data: userForm,
-            });
-          }
-        );
       }
+
+      // validator email format using regex
+      const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email format is invalid",
+        });
+      }
+
+      const findEmail = await User.findOne({
+        where: {
+          email,
+        },
+      });
+
+      if (findEmail) {
+        return res.status(400).json({
+          status: "error",
+          message: "email already exist",
+          data: {},
+        });
+      }
+
+      // Generate otp
+      const otp = generateOTP();
+      const otpExpirationValidity = 1; // Menentukan validitas kedaluwarsa OTP dalam menit
+      const otpExpiration = new Date();
+      otpExpiration.setMinutes(
+        otpExpiration.getMinutes() + otpExpirationValidity
+      ); // Menambahkan waktu kedaluwarsa OTP dalam menit
+
+      const userForm = await User.create({
+        id: uuid(),
+        name: name,
+        password: password,
+        email: email,
+        phone: phone,
+        otp,
+        otpExpiration: otpExpiration.toISOString(), // Mengubah format tanggal dan waktu menjadi ISO 8601
+        verified: false,
+        role: "karyawan",
+        image:
+          "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
+      });
+
+      // Send OTP to user's email
+      module.exports.sendOTPByEmail(userForm.email, userForm.otp);
+
+      res.status(201).json({
+        status: "success",
+        message: "Verification Link Sent, Please check email!",
+        data: userForm,
+      });
+    } catch (error) {
+      res.status(400).json({
+        status: "failed",
+        message: error.message,
+      });
+    }
+  },
+
+  async registerAdmin(req, res) {
+    try {
+      const password = await encryptPassword(req.body.password);
+      const { name, email, phone } = req.body;
+
+      // check email and password is not empty
+      if (!email || !password) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email and password is required",
+        });
+      }
+
+      // validator email format using regex
+      const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email format is invalid",
+        });
+      }
+
+      const findEmail = await User.findOne({
+        where: {
+          email,
+        },
+      });
+
+      if (findEmail) {
+        return res.status(400).json({
+          status: "error",
+          message: "email already exist",
+          data: {},
+        });
+      }
+
+      // Generate otp
+      const otp = generateOTP();
+      const otpExpirationValidity = 1; // Menentukan validitas kedaluwarsa OTP dalam menit
+      const otpExpiration = new Date();
+      otpExpiration.setMinutes(
+        otpExpiration.getMinutes() + otpExpirationValidity
+      ); // Menambahkan waktu kedaluwarsa OTP dalam menit
+
+      const userForm = await User.create({
+        id: uuid(),
+        name: name,
+        password: password,
+        email: email,
+        phone: phone,
+        otp,
+        otpExpiration: otpExpiration.toISOString(), // Mengubah format tanggal dan waktu menjadi ISO 8601
+        verified: false,
+        role: "admin",
+        image:
+          "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
+      });
+
+      // Send OTP to user's email
+      module.exports.sendOTPByEmail(userForm.email, userForm.otp);
+
+      res.status(201).json({
+        status: "success",
+        message: "Verification Link Sent, Please check email!",
+        data: userForm,
+      });
     } catch (error) {
       res.status(400).json({
         status: "failed",
@@ -259,6 +361,14 @@ module.exports = {
           message: "password salah!",
         });
       }
+
+      if (!emailUser.verified) {
+        return res.status(403).json({
+          status: "error",
+          message: "User not verified",
+        });
+      }
+
       const token = createToken({
         id: emailUser.id,
         email: emailUser.email,
@@ -270,6 +380,8 @@ module.exports = {
         status: "success",
         token,
         name: emailUser.name,
+        email: emailUser.email,
+        role: emailUser.role,
         createdAt: emailUser.createdAt,
         updatedAt: emailUser.updatedAt,
       });

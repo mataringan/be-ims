@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node -r dotenv/config bin/www",
+    "start": "nodemon -r dotenv/config bin/www",
     "develop": "nodemon -r dotenv/config bin/www",
     "db:create:test": "cross-env NODE_ENV=test sequelize db:create",
     "pretest": "cross-env NODE_ENV=test npm db:reset",

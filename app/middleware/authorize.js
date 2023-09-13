@@ -14,7 +14,7 @@ module.exports = {
       next();
     } catch (error) {
       console.error(error);
-      res.status(401).json({
+      return res.status(401).json({
         message: "Unauthorized",
       });
     }
