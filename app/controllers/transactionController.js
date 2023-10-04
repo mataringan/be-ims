@@ -148,7 +148,77 @@ module.exports = {
                 data: transaction,
             });
         } catch (error) {
-            res.status(500).json({
+            return res.status(500).json({
+                status: "error",
+                message: error.message,
+            });
+        }
+    },
+
+    async getTransactionByIdUser(req, res) {
+        try {
+            if (req.user.role === "admin" || req.user.role === "super admin") {
+                const userId = req.params.id;
+
+                const buyer = req.query.name ? req.query.name : "";
+                const date = req.query.date ? req.query.date : "";
+                const address = req.query.address ? req.query.address : "";
+                const status = req.query.status
+                    ? req.query.status.toLowerCase()
+                    : "";
+
+                const querySearch = {
+                    buyer: {
+                        [Op.iLike]: `%${buyer}`,
+                    },
+                };
+
+                if (status) {
+                    querySearch.status = {
+                        [Op.iLike]: status,
+                    };
+                }
+
+                if (address) {
+                    querySearch.address = {
+                        [Op.iLike]: `%${address}%`,
+                    };
+                }
+
+                if (date && Date.parse(date)) {
+                    querySearch.date = {
+                        [Op.eq]: date,
+                    };
+                }
+
+                const transaction = await Transaction.findAll({
+                    where: {
+                        userId,
+                        ...querySearch,
+                    },
+                    include: [
+                        {
+                            model: Product,
+                            where: {
+                                id: { [Op.col]: "Transaction.productId" },
+                            },
+                        },
+                    ],
+                });
+
+                res.status(200).json({
+                    status: "success",
+                    message: "get transaction by id user successfully",
+                    data: transaction,
+                });
+            } else {
+                res.status(403).json({
+                    status: "error",
+                    message: "only admin or super admin",
+                });
+            }
+        } catch (error) {
+            return res.status(500).json({
                 status: "error",
                 message: error.message,
             });
@@ -195,7 +265,7 @@ module.exports = {
     },
 
     async getAllTransaction(req, res) {
-        if (req.user.role === "admin") {
+        if (req.user.role === "admin" || req.user.role === "super admin") {
             const buyer = req.query.name ? req.query.name : "";
             const date = req.query.date ? req.query.date : "";
             const address = req.query.address ? req.query.address : "";
@@ -351,7 +421,7 @@ module.exports = {
     },
 
     async getAllTransaction(req, res) {
-        if (req.user.role === "admin") {
+        if (req.user.role === "admin" || req.user.role === "super admin") {
             const buyer = req.query.name ? req.query.name : "";
             const date = req.query.date ? req.query.date : "";
             const address = req.query.address ? req.query.address : "";
@@ -418,7 +488,7 @@ module.exports = {
     },
 
     async getAllNewTransaction(req, res) {
-        if (req.user.role === "admin") {
+        if (req.user.role === "admin" || req.user.role === "super admin") {
             const buyer = req.query.name ? req.query.name : "";
             const date = req.query.date ? req.query.date : "";
             const address = req.query.address ? req.query.address : "";
@@ -477,7 +547,7 @@ module.exports = {
                 data,
             });
         }
-        if (req.user.role === "karyawan") {
+        if (req.user.role === "karyawan" || req.user.role === "cabang") {
             const idUser = req.user.id;
             const buyer = req.query.name ? req.query.name : "";
             const date = req.query.date ? req.query.date : "";
@@ -645,6 +715,20 @@ module.exports = {
                     id,
                 },
             });
+
+            const productId = transaction.productId;
+
+            const product = await Product.findOne({
+                where: {
+                    id: productId,
+                },
+            });
+
+            // Perbarui stok produk
+            product.stok += transaction.quantity;
+
+            // Simpan perubahan stok produk
+            await product.save();
 
             transaction.destroy().then(() => {
                 res.status(200).json({

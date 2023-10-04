@@ -264,69 +264,71 @@ module.exports = {
 
     async registerAdmin(req, res) {
         try {
-            const password = await encryptPassword(req.body.password);
-            const { name, email, phone } = req.body;
+            if (req.user.role === "super admin") {
+                const password = await encryptPassword(req.body.password);
+                const { name, email, phone } = req.body;
 
-            // check email and password is not empty
-            if (!email || !password) {
-                return res.status(400).json({
-                    status: "error",
-                    message: "Email and password is required",
+                // check email and password is not empty
+                if (!email || !password) {
+                    return res.status(400).json({
+                        status: "error",
+                        message: "Email and password is required",
+                    });
+                }
+
+                // validator email format using regex
+                const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+                if (!emailRegex.test(email)) {
+                    return res.status(400).json({
+                        status: "error",
+                        message: "Email format is invalid",
+                    });
+                }
+
+                const findEmail = await User.findOne({
+                    where: {
+                        email,
+                    },
+                });
+
+                if (findEmail) {
+                    return res.status(400).json({
+                        status: "error",
+                        message: "email already exist",
+                        data: {},
+                    });
+                }
+
+                // Generate otp
+                const otp = generateOTP();
+                const otpExpirationValidity = 1; // Menentukan validitas kedaluwarsa OTP dalam menit
+                const otpExpiration = new Date();
+                otpExpiration.setMinutes(
+                    otpExpiration.getMinutes() + otpExpirationValidity
+                ); // Menambahkan waktu kedaluwarsa OTP dalam menit
+
+                const userForm = await User.create({
+                    id: uuid(),
+                    name: name,
+                    password: password,
+                    email: email,
+                    phone: phone,
+                    otp,
+                    otpExpiration: otpExpiration.toISOString(), // Mengubah format tanggal dan waktu menjadi ISO 8601
+                    verified: false,
+                    role: "admin",
+                    image: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
+                });
+
+                // Send OTP to user's email
+                module.exports.sendOTPByEmail(userForm.email, userForm.otp);
+
+                res.status(201).json({
+                    status: "success",
+                    message: "Verification Link Sent, Please check email!",
+                    data: userForm,
                 });
             }
-
-            // validator email format using regex
-            const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
-            if (!emailRegex.test(email)) {
-                return res.status(400).json({
-                    status: "error",
-                    message: "Email format is invalid",
-                });
-            }
-
-            const findEmail = await User.findOne({
-                where: {
-                    email,
-                },
-            });
-
-            if (findEmail) {
-                return res.status(400).json({
-                    status: "error",
-                    message: "email already exist",
-                    data: {},
-                });
-            }
-
-            // Generate otp
-            const otp = generateOTP();
-            const otpExpirationValidity = 1; // Menentukan validitas kedaluwarsa OTP dalam menit
-            const otpExpiration = new Date();
-            otpExpiration.setMinutes(
-                otpExpiration.getMinutes() + otpExpirationValidity
-            ); // Menambahkan waktu kedaluwarsa OTP dalam menit
-
-            const userForm = await User.create({
-                id: uuid(),
-                name: name,
-                password: password,
-                email: email,
-                phone: phone,
-                otp,
-                otpExpiration: otpExpiration.toISOString(), // Mengubah format tanggal dan waktu menjadi ISO 8601
-                verified: false,
-                role: "admin",
-                image: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
-            });
-
-            // Send OTP to user's email
-            module.exports.sendOTPByEmail(userForm.email, userForm.otp);
-
-            res.status(201).json({
-                status: "success",
-                message: "Verification Link Sent, Please check email!",
-                data: userForm,
-            });
         } catch (error) {
             res.status(400).json({
                 status: "failed",

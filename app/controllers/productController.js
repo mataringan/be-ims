@@ -6,10 +6,10 @@ module.exports = {
     async createProduct(req, res) {
         const { name, description, price, category, stok } = req.body;
         try {
-            if (req.user.role !== "admin") {
+            if (req.user.role !== "admin" && req.user.role !== "super admin") {
                 return res.status(403).json({
                     status: "error",
-                    message: "only admin can create products",
+                    message: "only admin or super admin can create products",
                 });
             }
 
@@ -118,7 +118,7 @@ module.exports = {
         try {
             const id = req.params.id;
             const { name, description, price, category, stok } = req.body;
-            if (req.user.role !== "admin") {
+            if (req.user.role !== "admin" && req.user.role !== "super admin") {
                 return res.status(403).json({
                     status: "error",
                     message: "only admin can update products",
@@ -197,7 +197,7 @@ module.exports = {
     async deleteProduct(req, res) {
         try {
             const id = req.params.id;
-            if (req.user.role !== "admin") {
+            if (req.user.role !== "admin" && req.user.role !== "super admin") {
                 return res.status(403).json({
                     status: "error",
                     message: "only admin can delete product",

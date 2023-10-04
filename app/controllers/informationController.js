@@ -6,7 +6,7 @@ module.exports = {
         const { title, content, date } = req.body;
 
         try {
-            if (req.user.role === "admin") {
+            if (req.user.role === "admin" || req.user.role === "super admin") {
                 const information = await Information.create({
                     id: uuid(),
                     title,
@@ -80,7 +80,7 @@ module.exports = {
         const { title, content, date } = req.body;
 
         try {
-            if (req.user.role === "admin") {
+            if (req.user.role === "admin" || req.user.role === "super admin") {
                 const information = await Information.findOne({
                     where: {
                         id: informationId,
@@ -115,7 +115,7 @@ module.exports = {
     async deleteInformation(req, res) {
         const informationId = req.params.id;
         try {
-            if (req.user.role === "admin") {
+            if (req.user.role === "admin" || req.user.role === "super admin") {
                 Information.destroy({
                     where: {
                         id: informationId,

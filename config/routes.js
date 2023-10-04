@@ -36,8 +36,17 @@ const {
     getTransactionByAddress,
     getAllNewTransaction,
     getAllNewTransactionAdmin,
+    getTransactionByIdUser,
 } = require("../app/controllers/transactionController");
-const { getAllUser } = require("../app/controllers/userController");
+const {
+    getAllUser,
+    createUser,
+    getUserById,
+    updateUser,
+    deleteUser,
+    getAllUserBySuperAdmin,
+    updateUserWithToken,
+} = require("../app/controllers/userController");
 const { authorize } = require("../app/middleware/authorize");
 const validator = require("../app/middleware/validation");
 
@@ -47,7 +56,21 @@ router.get("/", handleRoot);
 
 router.post("/register", register);
 
-router.post("/register-admin", registerAdmin);
+router.post("/register-admin", authorize, registerAdmin);
+
+router.post("/add-user", authorize, createUser);
+
+router.get("/all-user-karyawan", getAllUser);
+
+router.get("/all-user", getAllUserBySuperAdmin);
+
+router.get("/user/:id", authorize, getUserById);
+
+router.put("/user/:id", authorize, updateUser);
+
+router.put("/user", validator, authorize, updateUserWithToken);
+
+router.delete("/user/:id", authorize, deleteUser);
 
 router.put("/verify-user", verifyUser);
 
@@ -56,8 +79,6 @@ router.post("/resend-otp", resendOTP);
 router.post("/login", login);
 
 router.get("/whoami", authorize, whoami);
-
-router.get("/all-user-karyawan", getAllUser);
 
 router.post("/forgot-password", forgotPass);
 
@@ -76,6 +97,8 @@ router.delete("/product/:id", authorize, deleteProduct);
 router.post("/transaction", validator, authorize, createTransaction);
 
 router.get("/transaction/:id", authorize, getTransactionById);
+
+router.get("/transactionByIdUser/:id", authorize, getTransactionByIdUser);
 
 router.get("/transaction-address", authorize, getTransactionByAddress);
 
