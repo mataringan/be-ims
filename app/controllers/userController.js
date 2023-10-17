@@ -118,7 +118,7 @@ module.exports = {
 
             // Generate otp
             const otp = generateOTP();
-            const otpExpirationValidity = 1; // Menentukan validitas kedaluwarsa OTP dalam menit
+            const otpExpirationValidity = 5; // Menentukan validitas kedaluwarsa OTP dalam menit
             const otpExpiration = new Date();
             otpExpiration.setMinutes(
                 otpExpiration.getMinutes() + otpExpirationValidity

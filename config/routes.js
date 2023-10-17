@@ -18,6 +18,10 @@ const {
     deleteInformation,
 } = require("../app/controllers/informationController");
 const {
+    trainModel,
+    resultModelTrain,
+} = require("../app/controllers/predictController");
+const {
     createProduct,
     getAllProduct,
     getProductById,
@@ -123,5 +127,7 @@ router.get("/information/:id", getInformationByID);
 router.put("/information/:id", authorize, updateInformation);
 
 router.delete("/information/:id", authorize, deleteInformation);
+
+// router.get("/train-model", authorize, trainModel);
 
 module.exports = router;
