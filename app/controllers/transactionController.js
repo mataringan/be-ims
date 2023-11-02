@@ -2,14 +2,26 @@ const { v4: uuid } = require("uuid");
 const { Transaction } = require("../models");
 const cloudinary = require("../middleware/cloudinary");
 const { Product } = require("../models/");
+const { TransactionPoints } = require("../models");
 const { User } = require("../models");
 const { Op } = require("sequelize");
+const { sendTransactionDataByEmail } = require("./emailController");
 
 module.exports = {
     async createTransaction(req, res) {
         const idUser = req.user.id;
-        const { productId, buyer, date, quantity, note, status, address } =
-            req.body;
+        const {
+            productId,
+            buyer,
+            date,
+            quantity,
+            note,
+            status,
+            address,
+            email,
+            phone,
+            dataTransaction,
+        } = req.body;
 
         try {
             const product = await Product.findOne({
@@ -17,6 +29,19 @@ module.exports = {
                     id: productId,
                 },
             });
+
+            const checkDataTransaction = await TransactionPoints.findOne({
+                where: {
+                    phone,
+                },
+            });
+
+            if (checkDataTransaction) {
+                return res.status(400).json({
+                    status: "error",
+                    message: "Data pembeli sudah ada",
+                });
+            }
 
             if (!product) {
                 return res.status(404).json({
@@ -27,6 +52,12 @@ module.exports = {
 
             const total = product.price * quantity;
 
+            const quantityDividedBy4 = Math.floor(quantity / 4);
+
+            // mengurangkan 10 ribu setiap kelipatan 4
+
+            const totalAmount = total - quantityDividedBy4 * 10000;
+
             // Decrement the product stock
             await Product.update(
                 { stok: product.stok - quantity },
@@ -34,7 +65,7 @@ module.exports = {
             );
 
             if (req.file == null) {
-                Transaction.create({
+                const transaction = await Transaction.create({
                     id: uuid(),
                     productId,
                     userId: idUser,
@@ -44,22 +75,105 @@ module.exports = {
                     note,
                     status,
                     quantity,
-                    amount: total,
-                })
-                    .then((result) => {
-                        res.status(201).json({
-                            status: "success",
-                            message: "create transaction success",
-                            data: result,
-                        });
-                    })
-                    .catch((err) => {
-                        console.log(err);
-                        return res.status(500).json({
-                            status: "failed",
-                            message: err,
-                        });
-                    });
+                    amount: totalAmount,
+                });
+
+                // const promises = [];
+
+                // for (const pointUserData of dataTransaction) {
+                //     promises.push(
+                const transactionPoints = await TransactionPoints.create({
+                    id: uuid(),
+                    userId: idUser,
+                    transactionId: transaction.id,
+                    email,
+                    name: buyer,
+                    phone,
+                    points_balance: product.point * quantity,
+                });
+                //     );
+                // }
+
+                // await Promise.all(promises);
+
+                const htmlData = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+            }
+            .invoice {
+                width: 80%;
+                margin: 0 auto;
+                border: 1px solid #ccc;
+                padding: 20px;
+            }
+            .invoice-header {
+                text-align: center;
+            }
+            .invoice-title {
+                font-size: 24px;
+            }
+            .invoice-details {
+                margin-top: 20px;
+            }
+            .invoice-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+            .invoice-table th, .invoice-table td {
+                border: 1px solid #ccc;
+                padding: 8px;
+                text-align: left;
+            }
+            .invoice-total {
+                text-align: right;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="invoice">
+            <div class="invoice-header">
+                <div class="invoice-title">Invoice for Your Recent Transaction</div>
+            </div>
+            <div class="invoice-details">
+                <p>Selamat anda telah mendapatkan ${
+                    product.point * transaction.quantity
+                } point</p>
+                <p>ID Transaksi: ${transaction.id}</p>
+                <p>Produk: ${product.name}</p>
+                <p>Pembeli: ${transaction.buyer}</p>
+                <p>Tanggal: ${transaction.date}</p>
+                <p>Alamat: ${transaction.address}</p>
+                <p>Catatan: ${transaction.note}</p>
+                <p>Status: ${transaction.status}</p>
+                <p>Terima kasih atas pembelian Anda! Setiap kali Anda mencapai kelipatan 40 poin, kami akan memberikan Anda potongan harga sebesar 10 ribu.</p>
+            </div>
+            <table class="invoice-table">
+                <tr>
+                    <th>Jumlah</th>
+                    <th>Total Harga</th>
+                </tr>
+                <tr>
+                    <td>${transaction.quantity}</td>
+                    <td>${transaction.amount}</td>
+                </tr>
+            </table>
+            <div class="invoice-total">
+                <p><strong>Total Harga: ${transaction.amount}</strong></p>
+            </div>
+        </div>
+    </body>
+    </html>
+  `;
+                sendTransactionDataByEmail(email, htmlData);
+                res.status(201).json({
+                    status: "success",
+                    message: "create transaction success, please check email",
+                });
             } else {
                 const fileBase64 = req.file.buffer.toString("base64");
                 const file = `data:${req.file.mimetype};base64,${fileBase64}`;
@@ -118,6 +232,111 @@ module.exports = {
         }
     },
 
+    async getTransactionEmail(req, res) {
+        try {
+            const transactionId = req.body.transactionId;
+            const transaction = await Transaction.findOne({
+                where: { id: transactionId },
+            });
+            const dataTransaction = await TransactionPoints.findOne({
+                where: {
+                    transactionId,
+                },
+            });
+
+            const product = await Product.findOne({
+                where: {
+                    id: transaction.productId,
+                },
+            });
+
+            const htmlData = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+            }
+            .invoice {
+                width: 80%;
+                margin: 0 auto;
+                border: 1px solid #ccc;
+                padding: 20px;
+            }
+            .invoice-header {
+                text-align: center;
+            }
+            .invoice-title {
+                font-size: 24px;
+            }
+            .invoice-details {
+                margin-top: 20px;
+            }
+            .invoice-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+            .invoice-table th, .invoice-table td {
+                border: 1px solid #ccc;
+                padding: 8px;
+                text-align: left;
+            }
+            .invoice-total {
+                text-align: right;
+            }
+        </style>
+    </head>
+    <body>
+         <div class="invoice">
+            <div class="invoice-header">
+                <div class="invoice-title">Invoice for Your Recent Transaction</div>
+            </div>
+            <div class="invoice-details">
+                <p>Selamat anda telah mendapatkan ${
+                    product.point * transaction.quantity
+                } point</p>
+                <p>ID Transaksi: ${transaction.id}</p>
+                <p>Produk: ${product.name}</p>
+                <p>Pembeli: ${transaction.buyer}</p>
+                <p>Tanggal: ${transaction.date}</p>
+                <p>Alamat: ${transaction.address}</p>
+                <p>Catatan: ${transaction.note}</p>
+                <p>Status: ${transaction.status}</p>
+                <p>Terima kasih atas pembelian Anda! Setiap kali Anda mencapai kelipatan 40 poin, kami akan memberikan Anda potongan harga sebesar 10 ribu.</p>
+            </div>
+            <table class="invoice-table">
+                <tr>
+                    <th>Jumlah</th>
+                    <th>Total Harga</th>
+                </tr>
+                <tr>
+                    <td>${transaction.quantity}</td>
+                    <td>${transaction.amount}</td>
+                </tr>
+            </table>
+            <div class="invoice-total">
+                <p><strong>Total Harga: ${transaction.amount}</strong></p>
+            </div>
+        </div>
+    </body>
+    </html>
+  `;
+            sendTransactionDataByEmail(dataTransaction.email, htmlData);
+            res.status(200).json({
+                status: "success",
+                message: "get transaction email success, please check email.",
+                data: transaction,
+            });
+        } catch (error) {
+            return res.status(500).json({
+                status: "error",
+                message: error,
+            });
+        }
+    },
+
     async getTransactionById(req, res) {
         try {
             const id = req.params.id;
@@ -138,6 +357,10 @@ module.exports = {
                         where: {
                             id: { [Op.col]: "Transaction.userId" },
                         },
+                    },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
                     },
                 ],
             });
@@ -203,6 +426,10 @@ module.exports = {
                                 id: { [Op.col]: "Transaction.productId" },
                             },
                         },
+                        {
+                            model: TransactionPoints,
+                            attributes: ["name", "email", "phone"],
+                        },
                     ],
                 });
 
@@ -247,6 +474,10 @@ module.exports = {
                         where: {
                             id: { [Op.col]: "Transaction.userId" },
                         },
+                    },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
                     },
                 ],
             });
@@ -313,6 +544,10 @@ module.exports = {
                         where: {
                             id: { [Op.col]: "Transaction.userId" },
                         },
+                    },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
                     },
                 ],
             });
@@ -381,6 +616,10 @@ module.exports = {
                         where: {
                             id: { [Op.col]: "Transaction.userId" },
                         },
+                    },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
                     },
                 ],
             });
@@ -470,6 +709,10 @@ module.exports = {
                             id: { [Op.col]: "Transaction.userId" },
                         },
                     },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
+                    },
                 ],
                 order: [["createdAt", "DESC"]], // Mengurutkan berdasarkan createdAt dari yang terbaru
                 limit: 10, // Batasan jumlah transaksi yang akan ditampilkan
@@ -537,6 +780,10 @@ module.exports = {
                             id: { [Op.col]: "Transaction.userId" },
                         },
                     },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
+                    },
                 ],
                 order: [["createdAt", "DESC"]], // Mengurutkan berdasarkan createdAt dari yang terbaru
                 limit: 10, // Batasan jumlah transaksi yang akan ditampilkan
@@ -600,6 +847,10 @@ module.exports = {
                             id: { [Op.col]: "Transaction.userId" },
                         },
                     },
+                    {
+                        model: TransactionPoints,
+                        attributes: ["name", "email", "phone"],
+                    },
                 ],
                 order: [["createdAt", "DESC"]], // Mengurutkan berdasarkan createdAt dari yang terbaru
                 limit: 3, // Batasan jumlah transaksi yang akan ditampilkan
@@ -615,7 +866,8 @@ module.exports = {
     async updateTransaction(req, res) {
         try {
             const id = req.params.id;
-            const { buyer, date, quantity, note, address } = req.body;
+            const { buyer, date, quantity, note, address, email, phone } =
+                req.body;
 
             const transaction = await Transaction.findOne({
                 where: { id },
@@ -637,8 +889,25 @@ module.exports = {
             product.stok -= quantityDifference;
 
             // Hitung nilai baru (newAmount) berdasarkan harga produk dan quantity baru
-            const price = product.price;
-            const newAmount = price * quantity;
+            // const price = product.price;
+            // const newAmount = price * quantity;
+
+            const total = product.price * quantity;
+
+            const quantityDividedBy4 = Math.floor(quantity / 4);
+
+            // mengurangkan 10 ribu setiap kelipatan 4
+
+            const totalAmount = total - quantityDividedBy4 * 10000;
+
+            const pointsUser = await TransactionPoints.findOne({
+                where: {
+                    transactionId: transaction.id,
+                },
+            });
+
+            // hitung selisih point lama dan baru
+            const pointDeference = product.point * quantity;
 
             if (req.file) {
                 const fileBase64 = req.file.buffer.toString("base64");
@@ -664,12 +933,18 @@ module.exports = {
                         transaction.note = note;
                         transaction.address = address;
                         transaction.image = result.url;
-                        transaction.amount = newAmount;
+                        transaction.amount = totalAmount;
+
+                        // update point buyer
+                        pointsUser.points_balance = pointDeference;
+                        pointsUser.email = email;
+                        pointsUser.phone = phone;
 
                         await transaction.save();
 
-                        // Simpan perubahan stok produk
                         await product.save();
+
+                        await pointsUser.save();
 
                         res.status(200).json({
                             status: "success",
@@ -685,12 +960,18 @@ module.exports = {
                 transaction.quantity = quantity;
                 transaction.note = note;
                 transaction.address = address;
-                transaction.amount = newAmount;
+                transaction.amount = totalAmount;
+
+                // update point buyer
+                pointsUser.points_balance = pointDeference;
+                pointsUser.email = email;
+                pointsUser.phone = phone;
 
                 await transaction.save();
 
-                // Simpan perubahan stok produk
                 await product.save();
+
+                await pointsUser.save();
 
                 res.status(200).json({
                     status: "success",
@@ -727,15 +1008,32 @@ module.exports = {
             // Perbarui stok produk
             product.stok += transaction.quantity;
 
-            // Simpan perubahan stok produk
-            await product.save();
+            const pointUser = await TransactionPoints.findOne({
+                where: {
+                    transactionId: transaction.id,
+                },
+            });
 
-            transaction.destroy().then(() => {
+            // // Simpan perubahan stok produk
+            // await product.save();
+
+            if (transaction) {
+                await product.save();
+                await pointUser.destroy();
+                await transaction.destroy();
+
                 res.status(200).json({
                     status: "success",
                     message: "transaction data deleted successfully",
                 });
-            });
+            }
+
+            // transaction.destroy().then(() => {
+            //     res.status(200).json({
+            //         status: "success",
+            //         message: "transaction data deleted successfully",
+            //     });
+            // });
         } catch (error) {
             return res.status(500).json({
                 status: "error",

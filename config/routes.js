@@ -18,9 +18,13 @@ const {
     deleteInformation,
 } = require("../app/controllers/informationController");
 const {
-    trainModel,
-    resultModelTrain,
-} = require("../app/controllers/predictController");
+    getPointsByIdUser,
+    getPointsByBuyer,
+} = require("../app/controllers/pointController");
+// const {
+//     trainModel,
+//     resultModelTrain,
+// } = require("../app/controllers/predictController");
 const {
     createProduct,
     getAllProduct,
@@ -41,6 +45,7 @@ const {
     getAllNewTransaction,
     getAllNewTransactionAdmin,
     getTransactionByIdUser,
+    getTransactionEmail,
 } = require("../app/controllers/transactionController");
 const {
     getAllUser,
@@ -106,6 +111,8 @@ router.get("/transactionByIdUser/:id", authorize, getTransactionByIdUser);
 
 router.get("/transaction-address", authorize, getTransactionByAddress);
 
+router.post("/transaction-email", authorize, getTransactionEmail);
+
 // router.get("/transaction", authorize, getAllTransactionEmployee);
 
 router.get("/transaction", authorize, getTransactionByQuery);
@@ -117,6 +124,10 @@ router.get("/all-transaction", authorize, getAllTransaction);
 router.put("/transaction/:id", validator, authorize, updateTransaction);
 
 router.delete("/transaction/:id", authorize, deleteTransaction);
+
+router.get("/pointsIdUser", authorize, getPointsByIdUser);
+
+router.get("/pointsBuyer", authorize, getPointsByBuyer);
 
 router.post("/information", authorize, createInformation);
 

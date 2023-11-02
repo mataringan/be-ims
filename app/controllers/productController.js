@@ -4,7 +4,7 @@ const cloudinary = require("../middleware/cloudinary");
 
 module.exports = {
     async createProduct(req, res) {
-        const { name, description, price, category, stok } = req.body;
+        const { name, description, price, category, stok, point } = req.body;
         try {
             if (req.user.role !== "admin" && req.user.role !== "super admin") {
                 return res.status(403).json({
@@ -41,6 +41,7 @@ module.exports = {
                             name,
                             description,
                             price,
+                            point,
                             stok,
                             category,
                             image: result.url,
@@ -117,7 +118,8 @@ module.exports = {
     async updateProduct(req, res) {
         try {
             const id = req.params.id;
-            const { name, description, price, category, stok } = req.body;
+            const { name, description, price, category, stok, point } =
+                req.body;
             if (req.user.role !== "admin" && req.user.role !== "super admin") {
                 return res.status(403).json({
                     status: "error",

@@ -14,6 +14,9 @@ module.exports = (sequelize, DataTypes) => {
             this.belongsTo(models.User, {
                 foreignKey: "userId",
             });
+            this.hasMany(models.TransactionPoints, {
+                foreignKey: "transactionId",
+            });
         }
     }
     Transaction.init(
