@@ -1,5 +1,4 @@
 const { Information } = require("../models");
-const { v4: uuid } = require("uuid");
 
 module.exports = {
     async createInformation(req, res) {

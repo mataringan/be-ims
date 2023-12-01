@@ -24,12 +24,19 @@ module.exports = {
             buyer: {
                 type: Sequelize.STRING,
             },
+            phone: {
+                type: Sequelize.STRING,
+            },
+            email: {
+                type: Sequelize.STRING,
+            },
             date: {
                 type: Sequelize.DATEONLY,
             },
             quantity: {
                 type: Sequelize.INTEGER,
             },
+
             image: {
                 type: Sequelize.STRING,
             },

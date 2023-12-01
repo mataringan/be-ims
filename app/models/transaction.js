@@ -17,6 +17,11 @@ module.exports = (sequelize, DataTypes) => {
             this.hasMany(models.TransactionPoints, {
                 foreignKey: "transactionId",
             });
+            // this.hasOne(models.TransactionPoints, {
+            //     // Gunakan hasOne karena ada satu relasi untuk satu nomor telepon
+            //     foreignKey: "phone",
+            //     sourceKey: "phone",
+            // });
         }
     }
     Transaction.init(
@@ -25,6 +30,8 @@ module.exports = (sequelize, DataTypes) => {
             userId: DataTypes.UUID,
             buyer: DataTypes.STRING,
             date: DataTypes.DATEONLY,
+            phone: DataTypes.STRING,
+            email: DataTypes.STRING,
             quantity: DataTypes.INTEGER,
             image: DataTypes.STRING,
             address: DataTypes.STRING,

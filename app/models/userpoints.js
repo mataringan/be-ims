@@ -14,6 +14,10 @@ module.exports = (sequelize, DataTypes) => {
             this.belongsTo(models.Transaction, {
                 foreignKey: "transactionId",
             });
+            // this.belongsTo(models.Transaction, {
+            //     foreignKey: "phone",
+            //     sourceKey: "phone",
+            // });
         }
     }
     TransactionPoints.init(

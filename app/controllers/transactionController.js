@@ -4,6 +4,7 @@ const cloudinary = require("../middleware/cloudinary");
 const { Product } = require("../models/");
 const { TransactionPoints } = require("../models");
 const { User } = require("../models");
+const { Reward } = require("../models");
 const { Op } = require("sequelize");
 const { sendTransactionDataByEmail } = require("./emailController");
 
@@ -20,7 +21,7 @@ module.exports = {
             address,
             email,
             phone,
-            dataTransaction,
+            rewardId,
         } = req.body;
 
         try {
@@ -29,19 +30,6 @@ module.exports = {
                     id: productId,
                 },
             });
-
-            const checkDataTransaction = await TransactionPoints.findOne({
-                where: {
-                    phone,
-                },
-            });
-
-            if (checkDataTransaction) {
-                return res.status(400).json({
-                    status: "error",
-                    message: "Data pembeli sudah ada",
-                });
-            }
 
             if (!product) {
                 return res.status(404).json({
@@ -52,12 +40,6 @@ module.exports = {
 
             const total = product.price * quantity;
 
-            const quantityDividedBy4 = Math.floor(quantity / 4);
-
-            // mengurangkan 10 ribu setiap kelipatan 4
-
-            const totalAmount = total - quantityDividedBy4 * 10000;
-
             // Decrement the product stock
             await Product.update(
                 { stok: product.stok - quantity },
@@ -65,38 +47,151 @@ module.exports = {
             );
 
             if (req.file == null) {
+                const existingTransactionPoints =
+                    await TransactionPoints.findOne({
+                        where: {
+                            phone,
+                        },
+                    });
+
                 const transaction = await Transaction.create({
                     id: uuid(),
                     productId,
                     userId: idUser,
                     buyer,
                     date,
+                    email,
                     address,
                     note,
+                    phone,
                     status,
                     quantity,
-                    amount: totalAmount,
+                    amount: total,
                 });
 
-                // const promises = [];
+                const reward = await Reward.findByPk(rewardId);
 
-                // for (const pointUserData of dataTransaction) {
-                //     promises.push(
-                const transactionPoints = await TransactionPoints.create({
-                    id: uuid(),
-                    userId: idUser,
-                    transactionId: transaction.id,
-                    email,
-                    name: buyer,
-                    phone,
-                    points_balance: product.point * quantity,
-                });
-                //     );
-                // }
+                if (existingTransactionPoints) {
+                    let newAmount;
+                    if (reward) {
+                        // // Kurangi amount pada transaksi dengan nilai discount reward
+                        newAmount = transaction.amount - reward.discount;
 
-                // await Promise.all(promises);
+                        await existingTransactionPoints.update({
+                            points_balance:
+                                existingTransactionPoints.points_balance -
+                                reward.point,
+                        });
 
-                const htmlData = `
+                        // Update amount pada transaksi terakhir
+                        await Transaction.update(
+                            { amount: newAmount },
+                            {
+                                where: {
+                                    id: transaction.id,
+                                },
+                            }
+                        );
+                    }
+                    // Jika sudah ada transaksi sebelumnya, tambahkan poin baru ke poin yang sudah ada
+                    const newPoints = product.point * quantity;
+                    const totalPoints =
+                        existingTransactionPoints.points_balance + newPoints;
+
+                    // Update poin di transaksi yang sudah ada
+                    await existingTransactionPoints.update({
+                        points_balance: totalPoints,
+                    });
+
+                    const totalDiscountHTML =
+                        newAmount !== undefined
+                            ? `<p><strong>Total Harga Diskon: ${newAmount}</strong></p>`
+                            : "";
+
+                    const htmlData = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body {
+                                    font-family: Arial, sans-serif;
+                                }
+                                .invoice {
+                                    width: 80%;
+                                    margin: 0 auto;
+                                    border: 1px solid #ccc;
+                                    padding: 20px;
+                                }
+                                .invoice-header {
+                                    text-align: center;
+                                }
+                                .invoice-title {
+                                    font-size: 24px;
+                                }
+                                .invoice-details {
+                                    margin-top: 20px;
+                                }
+                                .invoice-table {
+                                    width: 100%;
+                                    border-collapse: collapse;
+                                    margin-top: 20px;
+                                }
+                                .invoice-table th, .invoice-table td {
+                                    border: 1px solid #ccc;
+                                    padding: 8px;
+                                    text-align: left;
+                                }
+                                .invoice-total {
+                                    text-align: right;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="invoice">
+                                <div class="invoice-header">
+                                    <div class="invoice-title">Invoice for Your Recent Transaction</div>
+                                </div>
+                                <div class="invoice-details">
+                                    <p>Selamat anda telah mendapatkan ${existingTransactionPoints.points_balance} point</p>
+                                    <p>ID Transaksi: ${transaction.id}</p>
+                                    <p>Produk: ${product.name}</p>
+                                    <p>Pembeli: ${transaction.buyer}</p>
+                                    <p>Tanggal: ${transaction.date}</p>
+                                    <p>Alamat: ${transaction.address}</p>
+                                    <p>Catatan: ${transaction.note}</p>
+                                    <p>Status: ${transaction.status}</p>
+                                </div>
+                                <table class="invoice-table">
+                                    <tr>
+                                        <th>Jumlah</th>
+                                        <th>Total Harga</th>
+                                    </tr>
+                                    <tr>
+                                        <td>${transaction.quantity}</td>
+                                        <td>${transaction.amount}</td>
+                                    </tr>
+                                </table>
+                                <div class="invoice-total">
+                                    <p><strong>Total Harga: ${transaction.amount}</strong></p>
+                                    ${totalDiscountHTML}
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                      `;
+                    sendTransactionDataByEmail(email, htmlData);
+                } else {
+                    const transactionPoints = await TransactionPoints.create({
+                        id: uuid(),
+                        userId: idUser,
+                        transactionId: transaction.id,
+                        email,
+                        name: buyer,
+                        phone,
+                        points_balance: product.point * quantity,
+                    });
+
+                    const htmlData = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -141,7 +236,7 @@ module.exports = {
             </div>
             <div class="invoice-details">
                 <p>Selamat anda telah mendapatkan ${
-                    product.point * transaction.quantity
+                    product.point * quantity
                 } point</p>
                 <p>ID Transaksi: ${transaction.id}</p>
                 <p>Produk: ${product.name}</p>
@@ -169,7 +264,9 @@ module.exports = {
     </body>
     </html>
   `;
-                sendTransactionDataByEmail(email, htmlData);
+                    sendTransactionDataByEmail(email, htmlData);
+                }
+
                 res.status(201).json({
                     status: "success",
                     message: "create transaction success, please check email",
@@ -240,7 +337,7 @@ module.exports = {
             });
             const dataTransaction = await TransactionPoints.findOne({
                 where: {
-                    transactionId,
+                    phone: transaction.phone,
                 },
             });
 
@@ -294,9 +391,7 @@ module.exports = {
                 <div class="invoice-title">Invoice for Your Recent Transaction</div>
             </div>
             <div class="invoice-details">
-                <p>Selamat anda telah mendapatkan ${
-                    product.point * transaction.quantity
-                } point</p>
+                <p>Selamat anda telah mendapatkan ${dataTransaction.points_balance} point</p>
                 <p>ID Transaksi: ${transaction.id}</p>
                 <p>Produk: ${product.name}</p>
                 <p>Pembeli: ${transaction.buyer}</p>
@@ -304,7 +399,6 @@ module.exports = {
                 <p>Alamat: ${transaction.address}</p>
                 <p>Catatan: ${transaction.note}</p>
                 <p>Status: ${transaction.status}</p>
-                <p>Terima kasih atas pembelian Anda! Setiap kali Anda mencapai kelipatan 40 poin, kami akan memberikan Anda potongan harga sebesar 10 ribu.</p>
             </div>
             <table class="invoice-table">
                 <tr>
@@ -323,7 +417,7 @@ module.exports = {
     </body>
     </html>
   `;
-            sendTransactionDataByEmail(dataTransaction.email, htmlData);
+            sendTransactionDataByEmail(transaction.email, htmlData);
             res.status(200).json({
                 status: "success",
                 message: "get transaction email success, please check email.",
@@ -638,13 +732,23 @@ module.exports = {
 
     async getTransactionByAddress(req, res) {
         try {
-            const dataAdress = await Transaction.findAll();
+            const dataAddress = await Transaction.findAll();
 
-            const formattedDataAddress = dataAdress.map((item) => {
-                return {
-                    address: item.address,
-                };
+            // Create a Set to store unique addresses
+            const uniqueAddresses = new Set();
+
+            dataAddress.forEach((item) => {
+                uniqueAddresses.add(item.address);
             });
+
+            // Convert the Set back to an array
+            const formattedDataAddress = Array.from(uniqueAddresses).map(
+                (address) => {
+                    return {
+                        address,
+                    };
+                }
+            );
 
             res.status(200).json({
                 status: "success",
@@ -888,21 +992,13 @@ module.exports = {
             // Perbarui stok produk
             product.stok -= quantityDifference;
 
-            // Hitung nilai baru (newAmount) berdasarkan harga produk dan quantity baru
-            // const price = product.price;
-            // const newAmount = price * quantity;
+            const additionalAmount = product.price * quantityDifference;
 
-            const total = product.price * quantity;
-
-            const quantityDividedBy4 = Math.floor(quantity / 4);
-
-            // mengurangkan 10 ribu setiap kelipatan 4
-
-            const totalAmount = total - quantityDividedBy4 * 10000;
+            const newAmount = transaction.amount + additionalAmount;
 
             const pointsUser = await TransactionPoints.findOne({
                 where: {
-                    transactionId: transaction.id,
+                    phone: transaction.phone,
                 },
             });
 
@@ -933,7 +1029,7 @@ module.exports = {
                         transaction.note = note;
                         transaction.address = address;
                         transaction.image = result.url;
-                        transaction.amount = totalAmount;
+                        transaction.amount = newAmount;
 
                         // update point buyer
                         pointsUser.points_balance = pointDeference;
@@ -960,7 +1056,7 @@ module.exports = {
                 transaction.quantity = quantity;
                 transaction.note = note;
                 transaction.address = address;
-                transaction.amount = totalAmount;
+                transaction.amount = newAmount;
 
                 // update point buyer
                 pointsUser.points_balance = pointDeference;
@@ -1019,8 +1115,10 @@ module.exports = {
 
             if (transaction) {
                 await product.save();
-                await pointUser.destroy();
                 await transaction.destroy();
+                if (pointUser) {
+                    await pointUser.destroy();
+                }
 
                 res.status(200).json({
                     status: "success",

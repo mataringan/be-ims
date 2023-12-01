@@ -20,6 +20,7 @@ const {
 const {
     getPointsByIdUser,
     getPointsByBuyer,
+    getPointsByPhone,
 } = require("../app/controllers/pointController");
 // const {
 //     trainModel,
@@ -32,6 +33,14 @@ const {
     updateProduct,
     deleteProduct,
 } = require("../app/controllers/productController");
+const {
+    createReward,
+    getReward,
+    getAvailableRewards,
+    getRewardById,
+    updateReward,
+    deleteReward,
+} = require("../app/controllers/rewardController");
 const handleRoot = require("../app/controllers/root");
 const {
     createTransaction,
@@ -128,6 +137,20 @@ router.delete("/transaction/:id", authorize, deleteTransaction);
 router.get("/pointsIdUser", authorize, getPointsByIdUser);
 
 router.get("/pointsBuyer", authorize, getPointsByBuyer);
+
+router.get("/pointsByPhone", authorize, getPointsByPhone);
+
+router.post("/reward", authorize, createReward);
+
+router.get("/reward", authorize, getReward);
+
+router.get("/rewardbypoin", authorize, getAvailableRewards);
+
+router.get("/reward/:id", getRewardById);
+
+router.put("/reward/:id", authorize, updateReward);
+
+router.delete("/reward/:id", authorize, deleteReward);
 
 router.post("/information", authorize, createInformation);
 

@@ -17,10 +17,27 @@ module.exports = {
                 ],
                 limit: 5,
             });
-            const transformedPoints = points.map((point) => ({
-                name: point.User.name,
-                point: point.points_balance,
-            }));
+
+            // Membuat objek untuk menyimpan poin yang sudah digrouping berdasarkan nama
+            const groupedPoints = {};
+
+            points.forEach((point) => {
+                const name = point.User.name;
+
+                if (groupedPoints[name]) {
+                    // Jika nama sudah ada, tambahkan poin
+                    groupedPoints[name].point += point.points_balance;
+                } else {
+                    // Jika nama belum ada, buat entri baru
+                    groupedPoints[name] = {
+                        name: name,
+                        point: point.points_balance,
+                    };
+                }
+            });
+
+            // Mengubah objek menjadi array
+            const transformedPoints = Object.values(groupedPoints);
 
             // Mengurutkan transformedPoints berdasarkan poin (points_balance) dalam urutan menurun
             transformedPoints.sort((a, b) => b.point - a.point);
@@ -66,4 +83,37 @@ module.exports = {
             });
         }
     },
+
+    async getPointsByPhone(req, res) {
+        try {
+            const phone = req.query.phone ? req.query.phone : "";
+
+            const points = await TransactionPoints.findOne({
+                where: {
+                    phone,
+                },
+            });
+
+            res.status(200).json({
+                status: "success",
+                message: "get data points by phone successfully",
+                data: points,
+            });
+        } catch (error) {
+            return res.status(500).json({
+                status: "error",
+                message: error.message,
+            });
+        }
+    },
+
+    // async updatePointsUser(req, res) {
+    //     const phone = req.query.phone;
+
+    //     const points = await TransactionPoints.findOne({
+    //         where: {
+    //             phone,
+    //         },
+    //     });
+    // },
 };
