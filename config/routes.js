@@ -21,6 +21,7 @@ const {
     getPointsByIdUser,
     getPointsByBuyer,
     getPointsByPhone,
+    getPointsByQuery,
 } = require("../app/controllers/pointController");
 // const {
 //     trainModel,
@@ -139,6 +140,8 @@ router.get("/pointsIdUser", authorize, getPointsByIdUser);
 router.get("/pointsBuyer", authorize, getPointsByBuyer);
 
 router.get("/pointsByPhone", authorize, getPointsByPhone);
+
+router.get("/pointsByQuery", authorize, getPointsByQuery);
 
 router.post("/reward", authorize, createReward);
 

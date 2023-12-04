@@ -40,6 +40,14 @@ module.exports = {
 
             const total = product.price * quantity;
 
+            // Pengecekan stok sebelum mengurangkan
+            if (quantity > product.stok) {
+                return res.status(400).json({
+                    status: "error",
+                    message: "Stok yang tersedia tidak mencukupi",
+                });
+            }
+
             // Decrement the product stock
             await Product.update(
                 { stok: product.stok - quantity },

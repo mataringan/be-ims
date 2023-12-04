@@ -1,5 +1,6 @@
 const { TransactionPoints } = require("../models");
 const { User } = require("../models");
+const { Op } = require("sequelize");
 
 module.exports = {
     async getPointsByIdUser(req, res) {
@@ -59,17 +60,15 @@ module.exports = {
         try {
             const points = await TransactionPoints.findAll({
                 attributes: ["name", "phone", "points_balance"],
+                order: [["points_balance", "DESC"]],
                 limit: 7,
             });
 
             const transformedPoints = points.map((point) => ({
                 name: point.name,
                 phone: point.phone,
-                point: point.points_balance,
+                points_balance: point.points_balance,
             }));
-
-            // Mengurutkan transformedPoints berdasarkan poin (points_balance) dalam urutan menurun
-            transformedPoints.sort((a, b) => b.point - a.point);
 
             res.status(200).json({
                 status: "success",
@@ -97,6 +96,53 @@ module.exports = {
             res.status(200).json({
                 status: "success",
                 message: "get data points by phone successfully",
+                data: points,
+            });
+        } catch (error) {
+            return res.status(500).json({
+                status: "error",
+                message: error.message,
+            });
+        }
+    },
+
+    async getPointsByQuery(req, res) {
+        try {
+            const name = req.query.name ? req.query.name : "";
+            const email = req.query.email ? req.query.email : "";
+            const phone = req.query.phone ? req.query.phone : "";
+
+            const querySearch = {
+                name: {
+                    [Op.iLike]: `%${name}`,
+                },
+            };
+
+            if (email) {
+                querySearch.email = {
+                    [Op.iLike]: email,
+                };
+            }
+
+            if (phone) {
+                querySearch.phone = {
+                    [Op.iLike]: phone,
+                };
+            }
+
+            // Jika tidak ada inputan pencarian, batasi jumlah data yang diambil menjadi 7
+            const limitCount = name || email || phone ? null : 7;
+
+            const points = await TransactionPoints.findAll({
+                attributes: ["name", "email", "phone", "points_balance"],
+                order: [["points_balance", "DESC"]],
+                where: querySearch,
+                limit: limitCount,
+            });
+
+            res.status(200).json({
+                status: "success",
+                message: "get data points by query successfully",
                 data: points,
             });
         } catch (error) {
