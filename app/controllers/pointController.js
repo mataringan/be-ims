@@ -1,22 +1,95 @@
 const { TransactionPoints } = require("../models");
+const { Point } = require("../models");
 const { User } = require("../models");
 const { Op } = require("sequelize");
 
 module.exports = {
+    // async getPointsByIdUser(req, res) {
+    //     try {
+    //         const userId = req.user.id;
+    //         const points = await TransactionPoints.findAll({
+    //             where: {
+    //                 userId,
+    //             },
+    //             include: [
+    //                 {
+    //                     model: User,
+    //                     attributes: ["name"],
+    //                 },
+    //             ],
+    //             limit: 5,
+    //         });
+
+    //         // Membuat objek untuk menyimpan poin yang sudah digrouping berdasarkan nama
+    //         const groupedPoints = {};
+
+    //         points.forEach((point) => {
+    //             const name = point.User.name;
+
+    //             if (groupedPoints[name]) {
+    //                 // Jika nama sudah ada, tambahkan poin
+    //                 groupedPoints[name].point += point.points_employee;
+    //             } else {
+    //                 // Jika nama belum ada, buat entri baru
+    //                 groupedPoints[name] = {
+    //                     name: name,
+    //                     point_employee: point.points_employee,
+    //                 };
+    //             }
+    //         });
+
+    //         // Mengubah objek menjadi array
+    //         const transformedPoints = Object.values(groupedPoints);
+
+    //         // Mengurutkan transformedPoints berdasarkan poin (points_balance) dalam urutan menurun
+    //         transformedPoints.sort((a, b) => b.point - a.point);
+
+    //         res.status(200).json({
+    //             status: "success",
+    //             message: "get points by idUser successfully",
+    //             data: transformedPoints,
+    //         });
+    //     } catch (error) {
+    //         res.status(500).json({
+    //             status: "error",
+    //             message: error.message,
+    //         });
+    //     }
+    // },
+
     async getPointsByIdUser(req, res) {
         try {
             const userId = req.user.id;
-            const points = await TransactionPoints.findAll({
+            const points = await Point.findOne({
                 where: {
                     userId,
                 },
+            });
+
+            res.status(200).json({
+                status: "success",
+                message: "get points by idUser successfully",
+                data: points,
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: "error",
+                message: error.message,
+            });
+        }
+    },
+
+    async getPointsAllEmployee(req, res) {
+        try {
+            // const userId = req.user.id;
+            const points = await TransactionPoints.findAll({
                 include: [
                     {
                         model: User,
                         attributes: ["name"],
                     },
                 ],
-                limit: 5,
+                // limit: 5,
             });
 
             // Membuat objek untuk menyimpan poin yang sudah digrouping berdasarkan nama
@@ -32,7 +105,7 @@ module.exports = {
                     // Jika nama belum ada, buat entri baru
                     groupedPoints[name] = {
                         name: name,
-                        point: point.points_balance,
+                        point_employee: point.points_balance,
                     };
                 }
             });

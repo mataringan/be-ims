@@ -15,7 +15,7 @@ module.exports = {
         const mailOptions = {
             from: "ngaosberkahfamily.cvs@gmail.com",
             to: email,
-            subject: "Transaction Data",
+            subject: "Data - CV Ngaos Berkah Family",
             html: htmlData,
         };
 

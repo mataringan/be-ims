@@ -12,8 +12,11 @@ module.exports = {
             point: {
                 type: Sequelize.INTEGER,
             },
-            discount: {
+            reward: {
                 type: Sequelize.INTEGER,
+            },
+            who: {
+                type: Sequelize.STRING,
             },
             description: {
                 type: Sequelize.STRING,

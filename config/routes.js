@@ -22,11 +22,9 @@ const {
     getPointsByBuyer,
     getPointsByPhone,
     getPointsByQuery,
+    getPointsAllEmployee,
 } = require("../app/controllers/pointController");
-// const {
-//     trainModel,
-//     resultModelTrain,
-// } = require("../app/controllers/predictController");
+
 const {
     createProduct,
     getAllProduct,
@@ -41,6 +39,10 @@ const {
     getRewardById,
     updateReward,
     deleteReward,
+    getRewardByFarmer,
+    getRewardByEmployee,
+    claimReward,
+    getAvailableRewardByEmployee,
 } = require("../app/controllers/rewardController");
 const handleRoot = require("../app/controllers/root");
 const {
@@ -137,6 +139,8 @@ router.delete("/transaction/:id", authorize, deleteTransaction);
 
 router.get("/pointsIdUser", authorize, getPointsByIdUser);
 
+router.get("/pointsAllEmployee", authorize, getPointsAllEmployee);
+
 router.get("/pointsBuyer", authorize, getPointsByBuyer);
 
 router.get("/pointsByPhone", authorize, getPointsByPhone);
@@ -151,7 +155,19 @@ router.get("/rewardbypoin", authorize, getAvailableRewards);
 
 router.get("/reward/:id", getRewardById);
 
+router.get("/reward-buyer", authorize, getRewardByFarmer);
+
+router.get("/reward-employee", authorize, getRewardByEmployee);
+
+router.get(
+    "/reward-available-employee",
+    authorize,
+    getAvailableRewardByEmployee
+);
+
 router.put("/reward/:id", authorize, updateReward);
+
+router.put("/claim-reward", authorize, claimReward);
 
 router.delete("/reward/:id", authorize, deleteReward);
 

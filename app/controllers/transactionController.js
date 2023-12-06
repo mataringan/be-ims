@@ -2,6 +2,7 @@ const { v4: uuid } = require("uuid");
 const { Transaction } = require("../models");
 const cloudinary = require("../middleware/cloudinary");
 const { Product } = require("../models/");
+const { Point } = require("../models/");
 const { TransactionPoints } = require("../models");
 const { User } = require("../models");
 const { Reward } = require("../models");
@@ -61,6 +62,11 @@ module.exports = {
                             phone,
                         },
                     });
+                const existingPoint = await Point.findOne({
+                    where: {
+                        userId: idUser,
+                    },
+                });
 
                 const transaction = await Transaction.create({
                     id: uuid(),
@@ -77,18 +83,18 @@ module.exports = {
                     amount: total,
                 });
 
-                const reward = await Reward.findByPk(rewardId);
+                const findReward = await Reward.findByPk(rewardId);
 
                 if (existingTransactionPoints) {
                     let newAmount;
-                    if (reward) {
+                    if (findReward) {
                         // // Kurangi amount pada transaksi dengan nilai discount reward
-                        newAmount = transaction.amount - reward.discount;
+                        newAmount = transaction.amount - findReward.reward;
 
                         await existingTransactionPoints.update({
                             points_balance:
                                 existingTransactionPoints.points_balance -
-                                reward.point,
+                                findReward.point,
                         });
 
                         // Update amount pada transaksi terakhir
@@ -106,9 +112,17 @@ module.exports = {
                     const totalPoints =
                         existingTransactionPoints.points_balance + newPoints;
 
+                    const totalPointsEmployee =
+                        existingTransactionPoints.points_employee + newPoints;
+
                     // Update poin di transaksi yang sudah ada
                     await existingTransactionPoints.update({
                         points_balance: totalPoints,
+                        points_employee: totalPointsEmployee,
+                    });
+
+                    await existingPoint.update({
+                        point: totalPointsEmployee,
                     });
 
                     const totalDiscountHTML =
@@ -197,7 +211,23 @@ module.exports = {
                         name: buyer,
                         phone,
                         points_balance: product.point * quantity,
+                        points_employee: product.point * quantity,
                     });
+
+                    if (existingPoint) {
+                        const beforePoint = existingPoint.point;
+                        const newPoint = product.point * quantity;
+                        const totalPoint = beforePoint + newPoint;
+                        await existingPoint.update({
+                            point: totalPoint,
+                        });
+                    } else {
+                        const point = await Point.create({
+                            id: uuid(),
+                            userId: idUser,
+                            point: product.point * quantity,
+                        });
+                    }
 
                     const htmlData = `
     <!DOCTYPE html>
@@ -253,7 +283,7 @@ module.exports = {
                 <p>Alamat: ${transaction.address}</p>
                 <p>Catatan: ${transaction.note}</p>
                 <p>Status: ${transaction.status}</p>
-                <p>Terima kasih atas pembelian Anda! Setiap kali Anda mencapai kelipatan 40 poin, kami akan memberikan Anda potongan harga sebesar 10 ribu.</p>
+
             </div>
             <table class="invoice-table">
                 <tr>
@@ -978,11 +1008,19 @@ module.exports = {
     async updateTransaction(req, res) {
         try {
             const id = req.params.id;
+            const userId = req.user.id;
+
             const { buyer, date, quantity, note, address, email, phone } =
                 req.body;
 
             const transaction = await Transaction.findOne({
                 where: { id },
+            });
+
+            const point = await Point.findOne({
+                where: {
+                    userId,
+                },
             });
 
             const productId = transaction.productId;
@@ -1010,8 +1048,17 @@ module.exports = {
                 },
             });
 
-            // hitung selisih point lama dan baru
-            const pointDeference = product.point * quantity;
+            // Hitung poin tambahan berdasarkan selisih jumlah baru dan jumlah lama
+            const pointPerProduct = product.point * quantityDifference;
+
+            // Perbarui saldo poin pengguna
+            const newPointsBalance =
+                pointsUser.points_balance + pointPerProduct;
+            const newPointsEmployee =
+                pointsUser.points_employee + pointPerProduct;
+
+            // perbarui point user / karyawan
+            const newPoints = point.point + pointPerProduct;
 
             if (req.file) {
                 const fileBase64 = req.file.buffer.toString("base64");
@@ -1040,7 +1087,9 @@ module.exports = {
                         transaction.amount = newAmount;
 
                         // update point buyer
-                        pointsUser.points_balance = pointDeference;
+                        pointsUser.points_balance = newPointsBalance;
+                        pointsUser.points_employee = newPointsEmployee;
+                        point.point = newPoints;
                         pointsUser.email = email;
                         pointsUser.phone = phone;
 
@@ -1049,6 +1098,8 @@ module.exports = {
                         await product.save();
 
                         await pointsUser.save();
+
+                        await point.save();
 
                         res.status(200).json({
                             status: "success",
@@ -1067,15 +1118,22 @@ module.exports = {
                 transaction.amount = newAmount;
 
                 // update point buyer
-                pointsUser.points_balance = pointDeference;
+                pointsUser.points_balance = newPointsBalance;
+                pointsUser.points_employee = newPointsEmployee;
+
                 pointsUser.email = email;
                 pointsUser.phone = phone;
+
+                //update point buyer
+                point.point = newPoints;
 
                 await transaction.save();
 
                 await product.save();
 
                 await pointsUser.save();
+
+                await point.save();
 
                 res.status(200).json({
                     status: "success",
@@ -1094,6 +1152,7 @@ module.exports = {
     async deleteTransaction(req, res) {
         try {
             const id = req.params.id;
+            const userId = req.user.id;
 
             const transaction = await Transaction.findOne({
                 where: {
@@ -1109,6 +1168,12 @@ module.exports = {
                 },
             });
 
+            const point = await Point.findOne({
+                where: {
+                    userId,
+                },
+            });
+
             // Perbarui stok produk
             product.stok += transaction.quantity;
 
@@ -1118,11 +1183,14 @@ module.exports = {
                 },
             });
 
-            // // Simpan perubahan stok produk
-            // await product.save();
+            const dataPoint = product.point * transaction.quantity;
+
+            // nilai point tidak pernah kurang dari 0
+            point.point = Math.max(0, point.point - dataPoint);
 
             if (transaction) {
                 await product.save();
+                await point.save();
                 await transaction.destroy();
                 if (pointUser) {
                     await pointUser.destroy();
@@ -1133,13 +1201,6 @@ module.exports = {
                     message: "transaction data deleted successfully",
                 });
             }
-
-            // transaction.destroy().then(() => {
-            //     res.status(200).json({
-            //         status: "success",
-            //         message: "transaction data deleted successfully",
-            //     });
-            // });
         } catch (error) {
             return res.status(500).json({
                 status: "error",

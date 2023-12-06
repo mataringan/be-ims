@@ -33,6 +33,9 @@ module.exports = {
             points_balance: {
                 type: Sequelize.INTEGER,
             },
+            points_employee: {
+                type: Sequelize.INTEGER,
+            },
             createdAt: {
                 allowNull: false,
                 type: Sequelize.DATE,
